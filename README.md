@@ -4,7 +4,7 @@
 
 ### Qwen 2.5 Coder Instruct
 
-[Qwen2.5.jinja](./qwen2.5-coder-instruct.jinja)
+[Qwen2.5.jinja](./jinja/qwen2.5-coder-instruct.jinja)
 
 You can set system prompt message as a variable.
 Please replace the "default_system_message" with your system prompt.
