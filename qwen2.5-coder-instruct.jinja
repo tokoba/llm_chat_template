@@ -1,0 +1,80 @@
+{# qwen_template.jinja - Jinja template for Qwen 2.5 Chat Models #}
+{%- set default_system_message = 'You are Qwen, created by Alibaba Cloud. You are a helpful assistant.' -%} {# Define default system message variable #}
+
+{# --- System Prompt Section --- #}
+{# System prompt handling based on whether tools are provided #}
+{%- if tools %}
+    {# --- System prompt for tool usage --- #}
+    {{- '<|im_start|>system\n' }} {# Start system message #}
+
+    {# Use provided system message if available, otherwise use default system message #}
+    {%- if messages[0]['role'] == 'system' %}
+        {{- messages[0]['content'] }} {# Output user-provided system message #}
+    {%- else %}
+        {{- default_system_message }} {# Output default system message using variable #}
+    {%- endif %}
+
+    {{- "\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>" }} {# Tool introduction and XML tag start #}
+    {%- for tool in tools %}
+        {{- "\n" }}
+        {{- tool | tojson }} {# Output each tool in JSON format #}
+    {%- endfor %}
+    {{- "\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{\\\"name\\\": <function-name>, \\\"arguments\\\": <args-json-object>}\\n</tool_call><|im_end|>\n" }} {# Tool call instruction and XML tag end, end system message #}
+
+{%- else %}
+    {# --- System prompt without tools --- #}
+    {# Use provided system message if available, otherwise use default system message #}
+    {%- if messages[0]['role'] == 'system' %}
+        {{- '<|im_start|>system\n' + messages[0]['content'] + '<|im_end|>\n' }} {# System message with user provided content #}
+    {%- else %}
+        {{- '<|im_start|>system\n' + default_system_message + '<|im_end|>\n' }} {# System message with default content using variable #}
+    {%- endif %}
+{%- endif %}
+
+{# --- Message Loop Section --- #}
+{# Loop through each message in the messages list #}
+{%- for message in messages %}
+    {# --- User/System/Assistant Message Handling (without tool_calls for assistant) --- #}
+    {%- if (message.role == "user") or (message.role == "system" and not loop.first) or (message.role == "assistant" and not message.tool_calls) %}
+        {{- '<|im_start|>' + message.role + '\n' + message.content + '<|im_end|>\n' }} {# Output user/system/assistant message with <|im_start|>, role, content, and <|im_end|> #}
+
+    {# --- Assistant Message Handling with tool_calls --- #}
+    {%- elif message.role == "assistant" %}
+        {{- '<|im_start|>' + message.role }} {# Start assistant message #}
+        {%- if message.content %}
+            {{- '\n' + message.content }} {# Output assistant message content if available #}
+        {%- endif %}
+        {# --- Tool Call Handling within Assistant Message --- #}
+        {%- for tool_call in message.tool_calls %}
+            {%- if tool_call.function is defined %}
+                {%- set tool_call = tool_call.function %} {# Use tool_call.function if defined (for function tool call) #}
+            {%- endif %}
+            {{- '\n<tool_call>\n{\"name\": \"' }} {# Start <tool_call> XML tag and JSON structure #}
+            {{- tool_call.name }} {# Tool function name #}
+            {{- '\", \"arguments\": ' }} {# Tool function arguments key in JSON #}
+            {{- tool_call.arguments | tojson }} {# Tool function arguments (JSON encoded) #}
+            {{- '}\n</tool_call>' }} {# End <tool_call> XML tag and JSON structure #}
+        {%- endfor %}
+        {{- '<|im_end|>\n' }} {# End assistant message #}
+
+    {# --- Tool Message Handling --- #}
+    {%- elif message.role == "tool" %}
+        {# --- Start User message before tool response if it's the first tool message or previous message is not tool --- #}
+        {%- if (loop.index0 == 0) or (messages[loop.index0 - 1].role != "tool") %}
+            {{- '<|im_start|>user' }} {# Start user message before tool response #}
+        {%- endif %}
+        {{- '\n<tool_response>\n' }} {# Start <tool_response> XML tag #}
+        {{- message.content }} {# Tool response content #}
+        {{- '\n</tool_response>' }} {# End <tool_response> XML tag #}
+        {# --- End User message after tool response if it's the last message or next message is not tool --- #}
+        {%- if loop.last or (messages[loop.index0 + 1].role != "tool") %}
+            {{- '<|im_end|>\n' }} {# End user message after tool response #}
+        {%- endif %}
+    {%- endif %}
+{%- endfor %}
+
+{# --- Generation Prompt Section --- #}
+{# Add generation prompt at the end if add_generation_prompt is True #}
+{%- if add_generation_prompt %}
+    {{- '<|im_start|>assistant\n' }} {# Start assistant generation prompt #}
+{%- endif %}
