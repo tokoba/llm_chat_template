@@ -1,0 +1,64 @@
+{%- set default_system_message = "あなたは優秀な日本人のソフトウェアエンジニアです。特定の言語指定がない限りは常に日本語で回答します。コード、コメント、解説も全て日本語で記述します。変数、関数、クラス、オブジェクトには詳細なコメントを記述し、他のプログラマーがミスしないよう注意点を明記します。ウェブ開発から組み込みまで幅広い知識を持ち、複雑な課題を高度な推論技術で解決します。技術的に正確、安全、効率的、かつ高可読性なコードを生成するために、以下を遵守してください。\n\n1. **FIM モード**: 簡潔さを最重視。コード補完に特化し、前後の文脈を理解して必要最小限のコードと設計意図が伝わるコメントのみを提供。冗長な説明や挨拶は不要。\n2. **チャットモード**: 詳細さと正確さを最重視。コード解説ではサンプルコードとアルゴリズムを説明。バグの危険性があれば警告と修正提案。\n\n**推論と設計**:\nユーザー指示を正確に理解し、CoT (Chain of Thought)推論でタスクを分割した上で Step by Step で各タスクについて合理的な推論を行うこと。また、ToT(Tree of Thought) による思考法を駆使し、タスクを実現するための複数の方法を検討してユーザーに紹介した上で、各案の長所と短所を比較評価した上で総合的に判断して最良案を提示すること。\nタスクについて検討を行う際には検討プロセスにミスがある可能性も考慮し、もし仮説が間違っていたら異なる結論に至ることも想定して推論を行うこと。必要であればユーザーに対してタスクを検討・処理する上での前提条件や制約条件などを問い合わせを行い、ユーザーからさらなる情報を引き出した上で正確な上に基づいた上で正しい推論を行うこと。\n\n**品質**:\nセキュリティベストプラクティスを実装。可読性を最優先し、明確な命名、一貫性、論理構成を徹底。チーム開発を考慮し、ドキュメント化とコーディング標準を遵守。\n\n**最終目標**:\n体系的、論理的、高効率、高セキュリティ、高可読性、高保守性のコードを生成し、最高のソフトウェアエンジニアリングを提供すること。" -%} {# デフォルトのシステムメッセージを定義 #}
+
+{%- if tools %} {# tools変数が定義されている場合 (tools機能が有効な場合) #}
+  {{- '<|im_start|>system\n' }} {# システムプロンプトの開始トークンとsystemロール, 改行 #}
+  {%- if messages[0]['role'] == 'system' %} {# メッセージリストの最初のメッセージがsystemロールの場合 #}
+    {{- messages[0]['content'] }} {# 最初のメッセージの内容をそのままシステムプロンプトとして使用 #}
+  {%- else %} {# 最初のメッセージがsystemロール以外の場合 #}
+    {{- '' }} {# システムプロンプトは空文字列 (デフォルトの動作) #}
+  {%- endif %}
+
+  {{- "\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>" }} {# ツール利用に関する説明文, <tools> XMLタグ開始 #}
+  {%- for tool in tools %} {# toolsリストをループ処理 (各toolに対して) #}
+    {{- "\n" }} {# 改行 #}
+    {{- tool | tojson }} {# toolオブジェクトをJSON形式に変換して出力 #}
+  {%- endfor %}
+  {{- "\n</tools>\n\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\n<tool_call>\n{\"name\": <function-name>, \"arguments\": <args-json-object>}\n</tool_call><|im_end|>\n" }} {# ツール呼び出し方法の説明文, </tools> XMLタグ終了, <tool_call> XMLタグの説明, システムプロンプトの終了トークン #}
+
+{%- else %} {# tools変数が定義されていない場合 (tools機能が無効な場合) #}
+  {%- if messages[0]['role'] == 'system' %} {# メッセージリストの最初のメッセージがsystemロールの場合 #}
+    {{- '<|im_start|>system\n' }} {# systemロールの開始トークンとsystemロール, 改行 #}
+    {{- default_system_message }} {# デフォルトのシステムメッセージを挿入 #}
+    {{- '<|im_end|>\n' }} {# systemロールの終了トークンと改行 #}
+  {%- endif %}
+{%- endif %}
+
+{%- for message in messages %} {# メッセージリストをループ処理 (各メッセージに対して) #}
+  {%- if (message.role == "user") or (message.role == "system" and not loop.first) %} {# メッセージのroleがuser, またはsystemかつ最初Messageでない場合 #}
+    {{- '<|im_start|>' + message.role + '\n' + message.content + '<|im_end|>\n' }} {# roleに応じた開始トークン, role, メッセージ内容, 終了トークンと改行 #}
+  {%- elif message.role == "assistant" and not message.tool_calls %} {# メッセージのroleがassistantかつtool_callsがない場合 (通常のassistantの応答) #}
+    {%- set content = message.content.split('</think>')[-1].lstrip('\n') %} {# contentから'</think>'以降を抽出し、先頭の改行を削除 (思考部分を除去) #}
+    {{- '<|im_start|>' + message.role + '\n' + content + '<|im_end|>\n' }} {# assistantロールの開始トークン, role, 抽出されたcontent, 終了トークンと改行 #}
+  {%- elif message.role == "assistant" %} {# メッセージのroleがassistantかつtool_callsがある場合 (ツール呼び出しを含むassistantの応答) #}
+    {%- set content = message.content.split('</think>')[-1].lstrip('\n') %} {# contentから'</think>'以降を抽出し、先頭の改行を削除 (思考部分を除去) #}
+    {{- '<|im_start|>' + message.role }} {# assistantロールの開始トークン, role #}
+    {%- if message.content %} {# contentが存在する場合 #}
+      {{- '\n' + content }} {# 改行とcontentを出力 #}
+    {%- endif %}
+    {%- for tool_call in message.tool_calls %} {# tool_callsリストをループ処理 (各tool_callに対して) #}
+      {%- if tool_call.function is defined %} {# tool_callにfunction属性が定義されている場合 (OpenAI Tools形式対応) #}
+        {%- set tool_call = tool_call.function %} {# tool_callをtool_call.functionで上書き (OpenAI Tools形式に変換) #}
+      {%- endif %}
+      {{- '\n<tool_call>\n{"name": "' }} {# 改行, <tool_call> XMLタグ開始, JSON形式の開始, nameキーと区切り文字 #}
+      {{- tool_call.name }} {# tool_callの名前 (関数名) #}
+      {{- '", "arguments": ' }} {# ", arguments"キーと区切り文字 #}
+      {{- tool_call.arguments | tojson }} {# tool_callの引数をJSON形式に変換して出力 #}
+      {{- '}\n</tool_call>' }} {# JSON形式の終了, </tool_call> XMLタグ終了 #}
+    {%- endfor %}
+    {{- '<|im_end|>\n' }} {# assistantロールの終了トークンと改行 #}
+  {%- elif message.role == "tool" %} {# メッセージのroleがtoolの場合 (ツールからの応答) #}
+    {%- if (loop.index0 == 0) or (messages[loop.index0 - 1].role != "tool") %} {# 最初のtoolメッセージ, または直前のメッセージがtoolロールでない場合 #}
+      {{- '<|im_start|>user' }} {# userロールの開始トークン (tool responseはuserロール扱い), tool response開始 #}
+    {%- endif %}
+    {{- '\n<tool_response>\n' }} {# 改行, <tool_response> XMLタグ開始 #}
+    {{- message.content }} {# tool responseの内容 #}
+    {{- '\n</tool_response>' }} {# 改行, </tool_response> XMLタグ終了 #}
+    {%- if loop.last or (messages[loop.index0 + 1].role != "tool") %} {# 最後のtoolメッセージ, または次のメッセージがtoolロールでない場合 #}
+      {{- '<|im_end|>\n' }} {# 終了トークンと改行, tool response終了 #}
+    {%- endif %}
+  {%- endif %}
+{%- endfor %}
+
+{%- if add_generation_prompt %} {# add_generation_prompt変数が真の場合 (生成プロンプトを追加する場合) #}
+  {{- '<|im_start|>assistant\n<think>\n' }} {# assistantロールの開始トークン, <think> XMLタグ開始と改行 (思考プロンプト開始) #}
+{%- endif %}
