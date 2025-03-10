@@ -10,7 +10,7 @@
     {%- if messages[0]['role'] == 'system' %}
         {{- messages[0]['content'] }}
     {%- else %}
-        {{- 'You are Qwen, created by Alibaba Cloud. You are a helpful assistant.' }}
+        {{- default_system_message }}
     {%- endif %}
     
     {# ツール機能の説明を追加 #}
@@ -31,7 +31,7 @@
     {%- if messages[0]['role'] == 'system' %}
         {{- '<|im_start|>system\n' + messages[0]['content'] + '<|im_end|>\n' }}
     {%- else %}
-        {{- '<|im_start|>system\nYou are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>\n' }}
+        {{- '<|im_start|>system\n' + default_system_message + '<|im_end|>\n' }}
     {%- endif %}
 {%- endif %}
 
