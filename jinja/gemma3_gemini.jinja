@@ -1,0 +1,69 @@
+{% set default_system_prompt = "あなたは優秀な日本のソフトウェアエンジニアです。入力言語に関わらず、常に日本語で応答してください。コード、コメント、思考プロセス、解説はすべて日本語で記述してください。すべてのコードスニペットに Markdown フォーマットを使用し、簡潔性と一貫性を確保してください。複雑なコードや技術的概念は段階的に説明してください。変数、関数、クラス、オブジェクトには詳細なコメントを記述し、他のプログラマーがミスしないよう注意点を明記してください。あなたの専門知識はウェブ開発から組み込みシステムまで多岐にわたり、高度な推論技術を用いて複雑な問題を解決することができます。技術的に正確、安全、効率的、かつ高可読性なコードを生成するために、以下を遵守してください。\n\n1. **文脈理解**: ユーザーの指示を完全に理解し、Chain-of-Thought (CoT) 推論を用いてタスクを分解します。Tree-of-Thoughts (ToT) を活用して複数の解決策を検討し、それぞれの長所と短所を比較分析した上でユーザーに提示し、最適なアプローチを推奨します。\n\n2. **動作モード**:\n _ **FIM モード (Fill-in-the-Middle)**: 簡潔さを最優先します。コード補完に特化し、設計意図を伝えるために必要な最小限のコードとコメントのみを提供します。冗長な説明や挨拶は避けてください。\n _ **チャットモード**: 詳細さと正確さを最優先します。サンプルコードとアルゴリズムの説明を含む、包括的なコード解説を提供します。潜在的なバグについて警告し、修正を提案します。\n\n3. **推論と設計**:\n _ CoT を使用して、ユーザーの要求をより小さく、管理しやすいサブタスクに分解します。各サブタスクに対して段階的な推論を実行します。\n _ ToT を使用して、複数の実装アプローチを検討します。これらのオプションをユーザーに提示し、それぞれの利点と欠点を比較します。この分析に基づいて最適なソリューションを推奨します。\n _ 推論プロセスにエラーがある可能性を認識します。初期の仮定が正しくない場合は、別の結論を検討してください。\n _ 必要に応じて、前提条件、制約、または要件についてユーザーに問い合わせ、正確な推論と解決策を保証します。\n\n4. **コード品質**:\n _ **セキュリティ**: セキュリティのベストプラクティスを実装します。\n _ **可読性**: 明確な命名規則、一貫したフォーマット、論理的なコード構造を通じて、可読性を最優先します。\n _ **保守性**: ドキュメントとコーディング標準を遵守し、チーム開発を考慮した設計を行います。\n _ **効率性**: 明瞭さを犠牲にすることなく、パフォーマンスを最適化します。\n\n5. **出力形式**:\n _ コードブロックには、常に言語とファイル名を含めてください (例: ` ```python filename.py `)。\n _ チャットのタイトルには、チャットの内容に直接関連する 3〜4 語のタイトルを生成します。直接関連する場合を除き、動詞の使用は避けてください。追加のテキスト、説明、句読点はありません。\n\n6. **エラー処理**:\n _ コード内の潜在的なエラー、エッジケース、例外を事前に特定し、対処します。\n _ 日本語で明確かつ有益なエラーメッセージを提供し、問題を解決する方法をユーザーに案内します。\n \* 制限や制約に遭遇した場合は、代替アプローチや回避策を提案します。\n\n**最終目標**: 体系的、論理的、高効率、高セキュリティ、高可読性、高保守性のコードを作成し、最高水準のソフトウェアエンジニアリングを提供すること。" %} {# デフォルトのシステムプロンプトを変数として定義 #}
+
+{{ bos_token }} {# BOSトークン (Begin-of-Stream Token) の挿入 #}
+
+{%- if messages[0]['role'] == 'system' -%}
+    {# ----- システムメッセージがmessagesリストの最初に存在する場合の処理ブロック ----- #}
+    {%- if messages[0]['content'] is string -%}
+        {# システムメッセージのcontentが文字列の場合 #}
+        {%- set system_message_content = messages[0]['content'] + default_system_prompt -%} {# messagesリストのシステムメッセージのcontentをsystem_message_content変数に格納 #}
+    {%- else -%}
+        {# システムメッセージのcontentが文字列以外 (リストなど) の場合 #}
+        {%- set system_message_content = messages[0]['content'][0]['text'] + default_system_prompt -%} {# messagesリストのシステムメッセージのcontentの最初のテキスト要素をsystem_message_content変数に格納 #}
+    {%- endif -%}
+{%- else -%}
+    {# ----- システムメッセージがmessagesリストの最初に存在しない場合の処理ブロック ----- #}
+    {%- set system_message_content = default_system_prompt -%} {# default_system_promptを変数に格納 #}
+{%- endif -%}
+
+{%- set first_user_prefix = system_message_content + '\n\n' -%} {# first_user_prefix変数にsystem_message_contentと改行を格納。最初のユーザーメッセージの前に付与 #}
+{%- set loop_messages = messages -%} {# loop_messages変数に全てのメッセージを格納。ループ処理の対象 #}
+{%- if messages[0]['role'] == 'system' -%}
+    {%- set loop_messages = messages[1:] -%} {# loop_messages変数にシステムメッセージ以降のメッセージを格納。ループ処理の対象 #}
+{%- endif -%}
+
+
+{%- for message in loop_messages -%}
+    {# ----- メッセージループ ----- #}
+    {%- if (message['role'] == 'user') != (loop.index0 % 2 == 0) -%}
+        {# 会話のロールが user/assistant/user/assistant/... と交互になっているかチェック #}
+        {{ raise_exception("Conversation roles must alternate user/assistant/user/assistant/...") }}
+    {%- endif -%}
+
+    {%- if (message['role'] == 'assistant') -%}
+        {# ロールが 'assistant' の場合、'model' に設定 #}
+        {%- set role = "model" -%}
+    {%- else -%}
+        {# それ以外の場合は、メッセージのロールをそのまま使用 #}
+        {%- set role = message['role'] -%}
+    {%- endif -%}
+
+    {{ '<start_of_turn>' + role + '\n' + (first_user_prefix if loop.first else "") }} {# 発話開始トークン、ロール、および最初のユーザーメッセージにはプレフィックスを付与 #}
+
+    {%- if message['content'] is string -%}
+        {# メッセージのcontentが文字列の場合 #}
+        {{ message['content'] | trim }} {# contentをtrimして出力 #}
+    {%- elif message['content'] is iterable -%}
+        {# メッセージのcontentがiterable (リストなど) の場合 #}
+        {%- for item in message['content'] -%}
+            {# contentの要素を順に処理 #}
+            {%- if item['type'] == 'image' -%}
+                {# 要素が画像の場合 #}
+                {{ '<img>' }} {# <img>タグを出力 (画像処理のプレースホルダー) #}
+            {%- elif item['type'] == 'text' -%}
+                {# 要素がテキストの場合 #}
+                {{ item['text'] | trim }} {# テキスト要素をtrimして出力 #}
+            {%- endif -%}
+        {%- endfor -%}
+    {%- else -%}
+        {# メッセージのcontentがstringでもiterableでもない場合 #}
+        {{ raise_exception("Invalid content type") }} {# エラー例外を発生 #}
+    {%- endif -%}
+
+    {{ '<end_of_turn>\n' }} {# 発話終了トークン #}
+{%- endfor -%}
+
+{%- if add_generation_prompt -%}
+    {# ----- 生成プロンプトの追加 ----- #}
+    {{'<start_of_turn>model\n'}} {# 生成開始トークンとmodelロールを出力 #}
+{%- endif -%}
