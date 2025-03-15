@@ -67,7 +67,7 @@ model:
     # An initial model to load.
     # Make sure the model is located in the model directory!
     # REQUIRED: This must be filled out to load a model on startup.
-    model_name: "Qwen2.5-Coder-32B-Instruct-8.0bpw"
+    model_name: "OlympicCoder-32B_8.0bpw"
 
     # Names of args to use as a fallback for API load requests (default: []).
     # For example, if you always want cache_mode to be Q4 instead of on the initial model load, add "cache_mode" to this array.
@@ -89,7 +89,7 @@ model:
 
     # Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0).
     # Represented as an array of MB per GPU.
-    autosplit_reserve: [128]
+    autosplit_reserve: [512]
 
     # An integer array of GBs of VRAM to split between GPUs (default: []).
     # Used with tensor parallelism.
@@ -131,7 +131,7 @@ model:
     # If a model contains multiple templates in its tokenizer_config.json,
     # set prompt_template to the name of the template you want to use.
     # NOTE: Only works with chat completion message lists!
-    prompt_template: qwen-coder-2.5-32B_claude.jinja
+    prompt_template: qwq-32B_claude.jinja
 
     # Enables vision support if the model supports it. (default: False)
     vision: false
@@ -146,11 +146,11 @@ model:
 # This will use more VRAM!
 draft_model:
     # Directory to look for draft models (default: models)
-    draft_model_dir: /home/maru/sn850hs/tabbyAPI_/models/
+    draft_model_dir: models
 
     # An initial draft model to load.
     # Ensure the model is in the model directory.
-    draft_model_name: "Qwen2.5-Coder-7B-Instruct-5.0bpw"
+    draft_model_name:
 
     # Rope scale for draft models (default: 1.0).
     # Same as compress_pos_emb.
